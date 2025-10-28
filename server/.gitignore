@@ -1,0 +1,13 @@
+# Environment Variables (Contains all your secrets!)
+.env
+
+# Dependencies (This folder is huge and can be rebuilt)
+node_modules/
+
+# Log files
+*.log
+npm-debug.log*
+
+# Operating System files
+.DS_Store
+Thumbs.db
