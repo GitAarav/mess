@@ -7,7 +7,7 @@ const { verifyToken } = require("../middleware/verifyToken");
 // Create a new item request
 router.post("/", verifyToken, async (req, res) => {
   try {
-    const { item_name, price_offered, delivery_mess_id } = req.body;
+    const { title, description } = req.body;
     const email = req.user.email;
 
     const userResult = await pool.query(
@@ -15,12 +15,13 @@ router.post("/", verifyToken, async (req, res) => {
       [email]
     );
     const requester_id = userResult.rows[0]?.user_id;
-    if (!requester_id) return res.status(404).json({ message: "User not found" });
+    if (!requester_id)
+      return res.status(404).json({ message: "User not found" });
 
     const result = await pool.query(
       `INSERT INTO "Requests" (item_name, price_offered, requester_id, delivery_mess_id)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [item_name, price_offered, requester_id, delivery_mess_id]
+      [title, description, requester_id, null] // temporarily set mess_id as null
     );
 
     res.status(201).json(result.rows[0]);
@@ -29,6 +30,7 @@ router.post("/", verifyToken, async (req, res) => {
     res.status(500).json({ message: "Failed to create request" });
   }
 });
+
 
 // Public route — fetch all unclaimed requests
 router.get("/open", async (req, res) => {
