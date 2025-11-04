@@ -7,7 +7,7 @@ export default function ProfileSetup({ user }) {
   const [formData, setFormData] = useState({
     room_number: "",
     phone_number: "",
-    default_mess_id: "1", // Default to mess_id 1
+    default_mess_id: "1",
   });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -27,10 +27,20 @@ export default function ProfileSetup({ user }) {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (response.data.exists) {
-          // User already registered, go to dashboard
-          navigate("/dashboard");
+        // Check if user exists AND has completed profile
+        if (response.data.exists && response.data.user) {
+          const userData = response.data.user;
+          
+          // Verify all required fields are present
+          if (userData.room_number && userData.phone_number && userData.default_mess_id) {
+            // Profile is complete, go to dashboard
+            navigate("/dashboard");
+          } else {
+            // User exists but profile incomplete, stay on this page
+            setLoading(false);
+          }
         } else {
+          // User doesn't exist, stay on this page
           setLoading(false);
         }
       } catch (err) {
@@ -45,7 +55,7 @@ export default function ProfileSetup({ user }) {
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-    setError(""); // Clear error on input change
+    setError("");
   };
 
   const handleSubmit = async (e) => {
@@ -98,7 +108,10 @@ export default function ProfileSetup({ user }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-100">
-        <p className="text-lg text-gray-700">Loading...</p>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-lg text-gray-700">Loading...</p>
+        </div>
       </div>
     );
   }

@@ -5,18 +5,29 @@ exports.checkUser = async (req, res) => {
     const email = req.user.email;
 
     const result = await pool.query(
-      'SELECT * FROM "Users" WHERE email=$1',
+      'SELECT user_id, email, room_number, phone_number, default_mess_id FROM "Users" WHERE email=$1',
       [email]
     );
 
     if (result.rows.length > 0) {
-      return res.json({ exists: true, user: result.rows[0] });
+      const user = result.rows[0];
+      
+      // Check if profile is complete
+      const isComplete = user.room_number && 
+                        user.phone_number && 
+                        user.default_mess_id;
+      
+      return res.json({ 
+        exists: true, 
+        user: user,
+        profileComplete: isComplete
+      });
     } else {
       return res.json({ exists: false });
     }
   } catch (err) {
     console.error("Error checking user:", err);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: "Failed to check user status", error: err.message });
   }
 };
 
@@ -29,6 +40,13 @@ exports.registerUser = async (req, res) => {
     if (!room_number || !phone_number || !default_mess_id) {
       return res.status(400).json({ 
         message: "All fields are required (room_number, phone_number, default_mess_id)" 
+      });
+    }
+
+    // Validate phone number format (basic check)
+    if (phone_number.length < 10) {
+      return res.status(400).json({ 
+        message: "Invalid phone number format" 
       });
     }
 
@@ -57,7 +75,8 @@ exports.registerUser = async (req, res) => {
     // Create user
     const result = await pool.query(
       `INSERT INTO "Users" (email, password_hash, room_number, phone_number, default_mess_id)
-       VALUES ($1, $2, $3, $4, $5) RETURNING user_id, email, room_number, phone_number, default_mess_id`,
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING user_id, email, room_number, phone_number, default_mess_id`,
       [email, "firebase", room_number, phone_number, default_mess_id]
     );
 
@@ -69,6 +88,9 @@ exports.registerUser = async (req, res) => {
     });
   } catch (err) {
     console.error("Error registering user:", err);
-    res.status(500).json({ message: "Server error: " + err.message });
+    res.status(500).json({ 
+      message: "Failed to register user", 
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+    });
   }
 };

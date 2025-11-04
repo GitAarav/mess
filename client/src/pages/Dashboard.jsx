@@ -1,21 +1,44 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { logout, auth } from "../firebase";
-
+import axios from "axios";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
+  const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
+    const fetchUserData = async (currentUser) => {
+      try {
+        const token = await currentUser.getIdToken();
+        const response = await axios.get("http://localhost:3000/auth/check", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.data.exists && response.data.user) {
+          setProfileData(response.data.user);
+        } else {
+          // User not registered, redirect to profile setup
+          navigate("/profile");
+        }
+      } catch (err) {
+        console.error("Error fetching user data:", err);
+        setError("Failed to load profile data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
       if (currentUser) {
         setUser(currentUser);
+        fetchUserData(currentUser);
       } else {
         navigate("/");
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -31,10 +54,22 @@ export default function Dashboard() {
     }
   };
 
+  const getMessBlockName = (messId) => {
+    const messBlocks = {
+      1: "A Block",
+      2: "B Block",
+      3: "C Block"
+    };
+    return messBlocks[messId] || "Unknown";
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-100">
-        <p className="text-lg text-gray-700">Loading...</p>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-lg text-gray-700">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -51,16 +86,26 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <h2 className="text-lg font-semibold text-blue-800 mb-2">
-            Profile Information
-          </h2>
-          <div className="space-y-1 text-sm text-gray-700">
-            <p><span className="font-medium">Name:</span> {user?.displayName || "Not set"}</p>
-            <p><span className="font-medium">Email:</span> {user?.email}</p>
-            <p><span className="font-medium">User ID:</span> {user?.uid}</p>
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            {error}
           </div>
-        </div>
+        )}
+
+        {profileData && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h2 className="text-lg font-semibold text-blue-800 mb-2">
+              Profile Information
+            </h2>
+            <div className="space-y-1 text-sm text-gray-700">
+              <p><span className="font-medium">Email:</span> {profileData.email}</p>
+              <p><span className="font-medium">Room Number:</span> {profileData.room_number}</p>
+              <p><span className="font-medium">Phone Number:</span> {profileData.phone_number}</p>
+              <p><span className="font-medium">Default Mess:</span> {getMessBlockName(profileData.default_mess_id)}</p>
+              <p><span className="font-medium">User ID:</span> {profileData.user_id}</p>
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-4">
           <button

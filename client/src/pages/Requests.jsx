@@ -16,8 +16,8 @@ export default function Requests() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  // Fetch open & active requests on load
   useEffect(() => {
     fetchData();
   }, []);
@@ -32,12 +32,11 @@ export default function Requests() {
         getActiveRequests()
       ]);
       
-      // Handle nested data structure from API
       setOpenRequests(openRes.data?.data || []);
       setActiveRequests(activeRes.data?.data || []);
     } catch (err) {
       console.error("Error fetching requests:", err);
-      setError("Failed to load requests. Please try again.");
+      setError("Failed to load requests. Please refresh the page.");
     } finally {
       setLoading(false);
     }
@@ -54,9 +53,15 @@ export default function Requests() {
     try {
       setSubmitting(true);
       setError("");
+      setSuccess("");
       
       await createRequest(formData);
       setFormData({ title: "", description: "" });
+      setSuccess("Request created successfully!");
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(""), 3000);
+      
       await fetchData();
     } catch (err) {
       console.error("Error creating request:", err);
@@ -69,7 +74,10 @@ export default function Requests() {
   const handleAccept = async (id) => {
     try {
       setError("");
+      setSuccess("");
       await acceptRequest(id);
+      setSuccess("Request accepted successfully!");
+      setTimeout(() => setSuccess(""), 3000);
       await fetchData();
     } catch (err) {
       console.error("Error accepting request:", err);
@@ -80,7 +88,10 @@ export default function Requests() {
   const handleComplete = async (id) => {
     try {
       setError("");
+      setSuccess("");
       await completeRequest(id);
+      setSuccess("Request completed successfully!");
+      setTimeout(() => setSuccess(""), 3000);
       await fetchData();
     } catch (err) {
       console.error("Error completing request:", err);
@@ -119,7 +130,12 @@ export default function Requests() {
             </div>
           )}
 
-          {/* Create request form */}
+          {success && (
+            <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+              {success}
+            </div>
+          )}
+
           <form onSubmit={handleCreate} className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -138,7 +154,7 @@ export default function Requests() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Price Offered
+                Price Offered (₹)
               </label>
               <input
                 type="number"
@@ -166,7 +182,6 @@ export default function Requests() {
           </form>
         </div>
 
-        {/* Open requests */}
         <div className="bg-white p-6 rounded-xl shadow mb-6">
           <h2 className="text-xl font-semibold mb-4 text-gray-800">
             Available Requests ({openRequests.length})
@@ -209,7 +224,6 @@ export default function Requests() {
           )}
         </div>
 
-        {/* Active requests */}
         <div className="bg-white p-6 rounded-xl shadow">
           <h2 className="text-xl font-semibold mb-4 text-gray-800">
             My Active Deliveries ({activeRequests.length})
