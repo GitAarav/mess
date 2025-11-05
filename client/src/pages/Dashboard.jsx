@@ -21,7 +21,6 @@ export default function Dashboard() {
         if (response.data.exists && response.data.user) {
           setProfileData(response.data.user);
         } else {
-          // User not registered, redirect to profile setup
           navigate("/profile");
         }
       } catch (err) {
@@ -75,51 +74,65 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-2xl">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            Welcome to Dashboard!
-          </h1>
-          <p className="text-gray-600">
-            Logged in as: <span className="font-medium">{user?.email}</span>
-          </p>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
+    <div className="min-h-screen bg-gray-100 py-8 px-4">
+      <div className="max-w-6xl mx-auto">
+        <div className="bg-white p-8 rounded-2xl shadow-lg">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">
+              Welcome to Dashboard!
+            </h1>
+            <p className="text-gray-600">
+              Logged in as: <span className="font-medium">{user?.email}</span>
+            </p>
           </div>
-        )}
 
-        {profileData && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h2 className="text-lg font-semibold text-blue-800 mb-2">
-              Profile Information
-            </h2>
-            <div className="space-y-1 text-sm text-gray-700">
-              <p><span className="font-medium">Email:</span> {profileData.email}</p>
-              <p><span className="font-medium">Room Number:</span> {profileData.room_number}</p>
-              <p><span className="font-medium">Phone Number:</span> {profileData.phone_number}</p>
-              <p><span className="font-medium">Default Mess:</span> {getMessBlockName(profileData.default_mess_id)}</p>
-              <p><span className="font-medium">User ID:</span> {profileData.user_id}</p>
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              {error}
             </div>
-          </div>
-        )}
+          )}
 
-        <div className="flex gap-4">
-          <button
-            onClick={handleLogout}
-            className="flex-1 bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 transition font-medium"
-          >
-            Logout
-          </button>
-          <button
-            onClick={() => navigate("/requests")}
-            className="flex-1 bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition font-medium"
-          >
-            View Requests
-          </button>
+          {profileData && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <h2 className="text-lg font-semibold text-blue-800 mb-2">
+                Profile Information
+              </h2>
+              <div className="space-y-1 text-sm text-gray-700">
+                <p><span className="font-medium">Email:</span> {profileData.email}</p>
+                <p><span className="font-medium">Room Number:</span> {profileData.room_number}</p>
+                <p><span className="font-medium">Phone Number:</span> {profileData.phone_number}</p>
+                <p><span className="font-medium">Default Mess:</span> {getMessBlockName(profileData.default_mess_id)}</p>
+                <p><span className="font-medium">User ID:</span> {profileData.user_id}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <button
+              onClick={() => navigate("/requests")}
+              className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition font-medium"
+            >
+              Browse Requests
+            </button>
+            <button
+              onClick={() => navigate("/my-orders")}
+              className="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition font-medium"
+            >
+              My Orders
+            </button>
+            <button
+              onClick={() => navigate("/my-deliveries")}
+              className="bg-purple-500 text-white px-6 py-3 rounded-lg hover:bg-purple-600 transition font-medium"
+            >
+              My Deliveries
+            </button>
+            <button
+              onClick={handleLogout}
+              className="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 transition font-medium"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
     </div>

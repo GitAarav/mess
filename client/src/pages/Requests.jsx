@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { auth } from "../firebase";
 import {
-  createRequest,
-  getOpenRequests,
-  acceptRequest,
-  getActiveRequests,
-  completeRequest,
-} from "../services/requestService";
+  collection,
+  query,
+  where,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  doc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db } from "../firebase";
 
 export default function Requests() {
   const navigate = useNavigate();
@@ -17,36 +22,86 @@ export default function Requests() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setCurrentUser(user);
+      } else {
+        navigate("/");
+      }
+    });
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      
-      const [openRes, activeRes] = await Promise.all([
-        getOpenRequests(),
-        getActiveRequests()
-      ]);
-      
-      setOpenRequests(openRes.data?.data || []);
-      setActiveRequests(activeRes.data?.data || []);
-    } catch (err) {
-      console.error("Error fetching requests:", err);
-      setError("Failed to load requests. Please refresh the page.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => unsubscribeAuth();
+  }, [navigate]);
+
+  // Real-time listener for open requests
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const q = query(
+      collection(db, "requests"),
+      where("status", "==", "pending")
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const requests = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setOpenRequests(requests);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Error fetching open requests:", err);
+        setError("Failed to load requests. Please refresh the page.");
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  // Real-time listener for active requests (accepted by current user)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const q = query(
+      collection(db, "requests"),
+      where("acceptedById", "==", currentUser.uid),
+      where("status", "==", "in_progress")
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const requests = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setActiveRequests(requests);
+      },
+      (err) => {
+        console.error("Error fetching active requests:", err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [currentUser]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    
+
     if (!formData.title.trim() || !formData.description.trim()) {
       setError("Please fill in all fields");
+      return;
+    }
+
+    if (!currentUser) {
+      setError("You must be logged in to create a request");
       return;
     }
 
@@ -54,48 +109,77 @@ export default function Requests() {
       setSubmitting(true);
       setError("");
       setSuccess("");
-      
-      await createRequest(formData);
+
+      await addDoc(collection(db, "requests"), {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        requesterId: currentUser.uid,
+        requesterEmail: currentUser.email,
+        status: "pending",
+        createdAt: serverTimestamp(),
+        acceptedById: null,
+        acceptedByEmail: null,
+      });
+
       setFormData({ title: "", description: "" });
       setSuccess("Request created successfully!");
-      
-      // Clear success message after 3 seconds
+
       setTimeout(() => setSuccess(""), 3000);
-      
-      await fetchData();
     } catch (err) {
       console.error("Error creating request:", err);
-      setError(err.response?.data?.message || "Failed to create request");
+      setError("Failed to create request");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleAccept = async (id) => {
+  const handleAccept = async (requestId, requesterId) => {
+    if (!currentUser) {
+      setError("You must be logged in to accept a request");
+      return;
+    }
+
+    if (requesterId === currentUser.uid) {
+      setError("You cannot accept your own request");
+      return;
+    }
+
     try {
       setError("");
       setSuccess("");
-      await acceptRequest(id);
+
+      const requestRef = doc(db, "requests", requestId);
+      await updateDoc(requestRef, {
+        status: "in_progress",
+        acceptedById: currentUser.uid,
+        acceptedByEmail: currentUser.email,
+        acceptedAt: serverTimestamp(),
+      });
+
       setSuccess("Request accepted successfully!");
       setTimeout(() => setSuccess(""), 3000);
-      await fetchData();
     } catch (err) {
       console.error("Error accepting request:", err);
-      setError(err.response?.data?.message || "Failed to accept request");
+      setError("Failed to accept request");
     }
   };
 
-  const handleComplete = async (id) => {
+  const handleComplete = async (requestId) => {
     try {
       setError("");
       setSuccess("");
-      await completeRequest(id);
+
+      const requestRef = doc(db, "requests", requestId);
+      await updateDoc(requestRef, {
+        status: "completed",
+        completedAt: serverTimestamp(),
+      });
+
       setSuccess("Request completed successfully!");
       setTimeout(() => setSuccess(""), 3000);
-      await fetchData();
     } catch (err) {
       console.error("Error completing request:", err);
-      setError(err.response?.data?.message || "Failed to complete request");
+      setError("Failed to complete request");
     }
   };
 
@@ -111,8 +195,8 @@ export default function Requests() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gray-100 py-6 px-4">
+      <div className="max-w-6xl mx-auto">
         <div className="bg-white p-6 rounded-xl shadow mb-6">
           <div className="flex justify-between items-center mb-4">
             <h1 className="text-2xl font-bold text-gray-800">Requests Dashboard</h1>
@@ -205,18 +289,21 @@ export default function Requests() {
                       <p className="text-sm text-gray-600 mt-1">
                         Price: ₹{req.description}
                       </p>
-                      {req.room_number && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Room: {req.room_number} | Mess: {req.mess_block}
-                        </p>
-                      )}
+                      <p className="text-xs text-gray-500 mt-1">
+                        Posted by: {req.requesterEmail}
+                      </p>
                     </div>
-                    <button
-                      onClick={() => handleAccept(req.id)}
-                      className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition text-sm font-medium ml-4"
-                    >
-                      Accept
-                    </button>
+                    {req.requesterId !== currentUser?.uid && (
+                      <button
+                        onClick={() => handleAccept(req.id, req.requesterId)}
+                        className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition text-sm font-medium ml-4"
+                      >
+                        Accept
+                      </button>
+                    )}
+                    {req.requesterId === currentUser?.uid && (
+                      <span className="text-sm text-gray-500 ml-4">Your request</span>
+                    )}
                   </div>
                 </div>
               ))}

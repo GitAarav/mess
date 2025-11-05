@@ -27,20 +27,15 @@ export default function ProfileSetup({ user }) {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        // Check if user exists AND has completed profile
         if (response.data.exists && response.data.user) {
           const userData = response.data.user;
           
-          // Verify all required fields are present
           if (userData.room_number && userData.phone_number && userData.default_mess_id) {
-            // Profile is complete, go to dashboard
             navigate("/dashboard");
           } else {
-            // User exists but profile incomplete, stay on this page
             setLoading(false);
           }
         } else {
-          // User doesn't exist, stay on this page
           setLoading(false);
         }
       } catch (err) {
@@ -63,7 +58,6 @@ export default function ProfileSetup({ user }) {
     setSubmitting(true);
     setError("");
 
-    // Validation
     if (!formData.room_number.trim()) {
       setError("Room number is required");
       setSubmitting(false);
@@ -117,85 +111,87 @@ export default function ProfileSetup({ user }) {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md">
-        <h1 className="text-2xl font-semibold mb-2 text-gray-800">
-          Complete Your Profile
-        </h1>
-        <p className="text-sm text-gray-600 mb-6">
-          Signed in as: {user?.email}
-        </p>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 px-4">
+      <div className="w-full max-w-md">
+        <div className="bg-white p-8 rounded-2xl shadow-lg">
+          <h1 className="text-2xl font-semibold mb-2 text-gray-800">
+            Complete Your Profile
+          </h1>
+          <p className="text-sm text-gray-600 mb-6">
+            Signed in as: {user?.email}
+          </p>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
-          </div>
-        )}
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              {error}
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Room Number
-            </label>
-            <input
-              type="text"
-              name="room_number"
-              placeholder="e.g., A-101"
-              className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              onChange={handleChange}
-              value={formData.room_number}
-              required
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Room Number
+              </label>
+              <input
+                type="text"
+                name="room_number"
+                placeholder="e.g., A-101"
+                className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onChange={handleChange}
+                value={formData.room_number}
+                required
+                disabled={submitting}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                name="phone_number"
+                placeholder="e.g., +91 9876543210"
+                className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onChange={handleChange}
+                value={formData.phone_number}
+                required
+                disabled={submitting}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mess Block
+              </label>
+              <select
+                name="default_mess_id"
+                className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onChange={handleChange}
+                value={formData.default_mess_id}
+                required
+                disabled={submitting}
+              >
+                <option value="">Select Mess Block</option>
+                <option value="1">A Block</option>
+                <option value="2">B Block</option>
+                <option value="3">C Block</option>
+              </select>
+            </div>
+
+            <button
+              type="submit"
               disabled={submitting}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Phone Number
-            </label>
-            <input
-              type="tel"
-              name="phone_number"
-              placeholder="e.g., +91 9876543210"
-              className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              onChange={handleChange}
-              value={formData.phone_number}
-              required
-              disabled={submitting}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Mess Block
-            </label>
-            <select
-              name="default_mess_id"
-              className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              onChange={handleChange}
-              value={formData.default_mess_id}
-              required
-              disabled={submitting}
+              className={`w-full text-white p-2 rounded font-medium transition-colors ${
+                submitting
+                  ? "bg-blue-300 cursor-not-allowed"
+                  : "bg-blue-500 hover:bg-blue-600"
+              }`}
             >
-              <option value="">Select Mess Block</option>
-              <option value="1">A Block</option>
-              <option value="2">B Block</option>
-              <option value="3">C Block</option>
-            </select>
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className={`w-full text-white p-2 rounded font-medium transition-colors ${
-              submitting
-                ? "bg-blue-300 cursor-not-allowed"
-                : "bg-blue-500 hover:bg-blue-600"
-            }`}
-          >
-            {submitting ? "Submitting..." : "Submit"}
-          </button>
-        </form>
+              {submitting ? "Submitting..." : "Submit"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

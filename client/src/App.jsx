@@ -3,6 +3,8 @@ import Login from "./pages/Login";
 import ProfileSetup from "./pages/ProfileSetup";
 import Dashboard from "./pages/Dashboard";
 import Requests from "./pages/Requests";
+import MyOrders from "./pages/MyOrders";
+import MyDeliveries from "./pages/MyDeliveries";
 import { useEffect, useState } from "react";
 import { auth } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -47,6 +49,14 @@ function App() {
       <Route 
         path="/requests" 
         element={user ? <Requests /> : <Navigate to="/" />} 
+      />
+      <Route 
+        path="/my-orders" 
+        element={user ? <MyOrders /> : <Navigate to="/" />} 
+      />
+      <Route 
+        path="/my-deliveries" 
+        element={user ? <MyDeliveries /> : <Navigate to="/" />} 
       />
     </Routes>
   );
