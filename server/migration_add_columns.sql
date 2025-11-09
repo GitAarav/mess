@@ -18,3 +18,5 @@ FROM information_schema.columns
 WHERE table_name = 'Requests' 
 ORDER BY ordinal_position;
 
+
+\

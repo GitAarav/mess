@@ -1,3 +1,4 @@
+// client/src/App.jsx
 import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import ProfileSetup from "./pages/ProfileSetup";
@@ -16,8 +17,9 @@ function App() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    // Check if Firebase auth is initialized
     if (!auth) {
-      setError("Firebase authentication not initialized");
+      setError("Firebase authentication not initialized. Please check your configuration.");
       setLoading(false);
       return;
     }
@@ -26,20 +28,21 @@ function App() {
       const unsubscribe = onAuthStateChanged(
         auth,
         (currentUser) => {
+          console.log("Auth state changed:", currentUser?.email || "No user");
           setUser(currentUser);
           setLoading(false);
           setError(null);
         },
         (err) => {
           console.error("Auth state change error:", err);
-          setError("Authentication error");
+          setError(`Authentication error: ${err.message}`);
           setLoading(false);
         }
       );
       return () => unsubscribe();
     } catch (err) {
       console.error("Error setting up auth listener:", err);
-      setError("Failed to initialize authentication");
+      setError(`Failed to initialize authentication: ${err.message}`);
       setLoading(false);
     }
   }, []);

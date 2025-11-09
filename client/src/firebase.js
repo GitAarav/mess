@@ -1,8 +1,9 @@
+// client/src/firebase.js
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-// Firebase config with fallback values for development
+// Firebase config with fallback values
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCiGu_0_91mSDlqNpy9S3qVP44IdMwDlp4",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "signsync-e53e0.firebaseapp.com",
@@ -13,25 +14,35 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-46H6V45WRJ",
 };
 
-let app, auth, db, provider;
+// Initialize Firebase
+let app;
+let auth;
+let db;
+let provider;
 
 try {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   provider = new GoogleAuthProvider();
   db = getFirestore(app);
+  console.log("Firebase initialized successfully");
 } catch (error) {
   console.error("Firebase initialization error:", error);
-  // Don't throw - allow app to continue, Firebase will be undefined
-  console.warn("Firebase failed to initialize. Some features may not work.");
+  // Create dummy auth object to prevent app crash
+  auth = null;
+  provider = null;
+  db = null;
 }
 
 export { auth, provider, db };
 
 export const signInWithGoogle = async () => {
+  if (!auth || !provider) {
+    throw new Error("Firebase not initialized properly");
+  }
   try {
     const result = await signInWithPopup(auth, provider);
-    console.log("User signed in:", result.user);
+    console.log("User signed in:", result.user.email);
     return result;
   } catch (error) {
     console.error("Sign in error:", error);
@@ -40,6 +51,9 @@ export const signInWithGoogle = async () => {
 };
 
 export const logout = async () => {
+  if (!auth) {
+    throw new Error("Firebase not initialized properly");
+  }
   try {
     await signOut(auth);
     console.log("User signed out");
@@ -48,5 +62,3 @@ export const logout = async () => {
     throw error;
   }
 };
-
-export { auth };
