@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { logout, auth } from "../firebase";
-import axios from "axios";
+import api from "../services/api";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -13,10 +13,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchUserData = async (currentUser) => {
       try {
-        const token = await currentUser.getIdToken();
-        const response = await axios.get("http://localhost:3000/auth/check", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await api.get("/auth/check");
 
         if (response.data.exists && response.data.user) {
           setProfileData(response.data.user);

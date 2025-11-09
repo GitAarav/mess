@@ -1,17 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth } from "../firebase";
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  addDoc,
-  updateDoc,
-  doc,
-  serverTimestamp,
-} from "firebase/firestore";
-import { db } from "../firebase";
+import api from "../services/api";
 
 export default function Requests() {
   const navigate = useNavigate();
@@ -23,6 +13,8 @@ export default function Requests() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
+  const [acceptingId, setAcceptingId] = useState(null);
+  const [completingId, setCompletingId] = useState(null);
 
   useEffect(() => {
     const unsubscribeAuth = auth.onAuthStateChanged((user) => {
@@ -36,60 +28,74 @@ export default function Requests() {
     return () => unsubscribeAuth();
   }, [navigate]);
 
-  // Real-time listener for open requests
+  // Fetch open requests from backend
   useEffect(() => {
     if (!currentUser) return;
 
-    const q = query(
-      collection(db, "requests"),
-      where("status", "==", "pending")
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const requests = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setOpenRequests(requests);
+    const fetchOpenRequests = async () => {
+      try {
+        const response = await api.get("/requests/open");
+        const requests = response.data.data || [];
+        
+        // Get current user's email to filter out their own requests
+        const userEmail = currentUser.email;
+        
+        // Map backend fields to frontend format and filter out user's own requests
+        const mappedRequests = requests
+          .map((req) => ({
+            id: req.id.toString(),
+            title: req.title,
+            description: req.description.toString(),
+            status: req.status === 'open' ? 'pending' : req.status,
+            requesterEmail: req.email || '', // Backend should include email
+            requesterId: req.requester_id?.toString() || '',
+            createdAt: req.created_at ? { seconds: new Date(req.created_at).getTime() / 1000 } : null,
+          }))
+          .filter((req) => req.requesterEmail !== userEmail);
+        
+        setOpenRequests(mappedRequests);
         setLoading(false);
-      },
-      (err) => {
+      } catch (err) {
         console.error("Error fetching open requests:", err);
         setError("Failed to load requests. Please refresh the page.");
         setLoading(false);
       }
-    );
+    };
 
-    return () => unsubscribe();
+    fetchOpenRequests();
+    // Poll every 5 seconds for updates (since we're not using real-time)
+    const interval = setInterval(fetchOpenRequests, 5000);
+    return () => clearInterval(interval);
   }, [currentUser]);
 
-  // Real-time listener for active requests (accepted by current user)
+  // Fetch active requests (accepted by current user) from backend
   useEffect(() => {
     if (!currentUser) return;
 
-    const q = query(
-      collection(db, "requests"),
-      where("acceptedById", "==", currentUser.uid),
-      where("status", "==", "in_progress")
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const requests = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
+    const fetchActiveRequests = async () => {
+      try {
+        const response = await api.get("/requests/active");
+        const requests = response.data.data || [];
+        
+        // Map backend fields to frontend format
+        const mappedRequests = requests.map((req) => ({
+          id: req.id.toString(),
+          title: req.title,
+          description: req.description.toString(),
+          status: req.status,
+          createdAt: req.created_at ? { seconds: new Date(req.created_at).getTime() / 1000 } : null,
         }));
-        setActiveRequests(requests);
-      },
-      (err) => {
+        
+        setActiveRequests(mappedRequests);
+      } catch (err) {
         console.error("Error fetching active requests:", err);
       }
-    );
+    };
 
-    return () => unsubscribe();
+    fetchActiveRequests();
+    // Poll every 5 seconds for updates
+    const interval = setInterval(fetchActiveRequests, 5000);
+    return () => clearInterval(interval);
   }, [currentUser]);
 
   const handleCreate = async (e) => {
@@ -97,6 +103,17 @@ export default function Requests() {
 
     if (!formData.title.trim() || !formData.description.trim()) {
       setError("Please fill in all fields");
+      return;
+    }
+
+    // Validate price
+    const price = parseFloat(formData.description);
+    if (isNaN(price) || price < 0) {
+      setError("Please enter a valid positive price");
+      return;
+    }
+    if (price > 100000) {
+      setError("Price cannot exceed ₹100,000");
       return;
     }
 
@@ -110,76 +127,68 @@ export default function Requests() {
       setError("");
       setSuccess("");
 
-      await addDoc(collection(db, "requests"), {
+      await api.post("/requests", {
         title: formData.title.trim(),
         description: formData.description.trim(),
-        requesterId: currentUser.uid,
-        requesterEmail: currentUser.email,
-        status: "pending",
-        createdAt: serverTimestamp(),
-        acceptedById: null,
-        acceptedByEmail: null,
       });
 
       setFormData({ title: "", description: "" });
       setSuccess("Request created successfully!");
-
       setTimeout(() => setSuccess(""), 3000);
+      // Lists will update via polling
     } catch (err) {
       console.error("Error creating request:", err);
-      setError("Failed to create request");
+      setError(err.response?.data?.message || "Failed to create request");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleAccept = async (requestId, requesterId) => {
+  const handleAccept = async (requestId, requesterEmail) => {
     if (!currentUser) {
       setError("You must be logged in to accept a request");
       return;
     }
 
-    if (requesterId === currentUser.uid) {
+    if (requesterEmail === currentUser.email) {
       setError("You cannot accept your own request");
       return;
     }
 
     try {
+      setAcceptingId(requestId);
       setError("");
       setSuccess("");
 
-      const requestRef = doc(db, "requests", requestId);
-      await updateDoc(requestRef, {
-        status: "in_progress",
-        acceptedById: currentUser.uid,
-        acceptedByEmail: currentUser.email,
-        acceptedAt: serverTimestamp(),
-      });
+      await api.patch(`/requests/${requestId}/accept`);
 
       setSuccess("Request accepted successfully!");
       setTimeout(() => setSuccess(""), 3000);
+      // Lists will update via polling
     } catch (err) {
       console.error("Error accepting request:", err);
-      setError("Failed to accept request");
+      setError(err.response?.data?.message || "Failed to accept request");
+    } finally {
+      setAcceptingId(null);
     }
   };
 
   const handleComplete = async (requestId) => {
     try {
+      setCompletingId(requestId);
       setError("");
       setSuccess("");
 
-      const requestRef = doc(db, "requests", requestId);
-      await updateDoc(requestRef, {
-        status: "completed",
-        completedAt: serverTimestamp(),
-      });
+      await api.patch(`/requests/${requestId}/complete`);
 
       setSuccess("Request completed successfully!");
       setTimeout(() => setSuccess(""), 3000);
+      // Lists will update via polling
     } catch (err) {
       console.error("Error completing request:", err);
-      setError("Failed to complete request");
+      setError(err.response?.data?.message || "Failed to complete request");
+    } finally {
+      setCompletingId(null);
     }
   };
 
@@ -293,15 +302,20 @@ export default function Requests() {
                         Posted by: {req.requesterEmail}
                       </p>
                     </div>
-                    {req.requesterId !== currentUser?.uid && (
+                    {req.requesterEmail !== currentUser?.email && (
                       <button
-                        onClick={() => handleAccept(req.id, req.requesterId)}
-                        className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition text-sm font-medium ml-4"
+                        onClick={() => handleAccept(req.id, req.requesterEmail)}
+                        disabled={acceptingId === req.id}
+                        className={`px-4 py-2 rounded-lg transition text-sm font-medium ml-4 ${
+                          acceptingId === req.id
+                            ? "bg-green-300 cursor-not-allowed"
+                            : "bg-green-500 hover:bg-green-600 text-white"
+                        }`}
                       >
-                        Accept
+                        {acceptingId === req.id ? "Accepting..." : "Accept"}
                       </button>
                     )}
-                    {req.requesterId === currentUser?.uid && (
+                    {req.requesterEmail === currentUser?.email && (
                       <span className="text-sm text-gray-500 ml-4">Your request</span>
                     )}
                   </div>
@@ -340,9 +354,14 @@ export default function Requests() {
                     </div>
                     <button
                       onClick={() => handleComplete(req.id)}
-                      className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition text-sm font-medium ml-4"
+                      disabled={completingId === req.id}
+                      className={`px-4 py-2 rounded-lg transition text-sm font-medium ml-4 ${
+                        completingId === req.id
+                          ? "bg-blue-300 cursor-not-allowed"
+                          : "bg-blue-500 hover:bg-blue-600 text-white"
+                      }`}
                     >
-                      Mark Complete
+                      {completingId === req.id ? "Completing..." : "Mark Complete"}
                     </button>
                   </div>
                 </div>

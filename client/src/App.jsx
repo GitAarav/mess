@@ -8,17 +8,40 @@ import MyDeliveries from "./pages/MyDeliveries";
 import { useEffect, useState } from "react";
 import { auth } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    if (!auth) {
+      setError("Firebase authentication not initialized");
       setLoading(false);
-    });
-    return () => unsubscribe();
+      return;
+    }
+
+    try {
+      const unsubscribe = onAuthStateChanged(
+        auth,
+        (currentUser) => {
+          setUser(currentUser);
+          setLoading(false);
+          setError(null);
+        },
+        (err) => {
+          console.error("Auth state change error:", err);
+          setError("Authentication error");
+          setLoading(false);
+        }
+      );
+      return () => unsubscribe();
+    } catch (err) {
+      console.error("Error setting up auth listener:", err);
+      setError("Failed to initialize authentication");
+      setLoading(false);
+    }
   }, []);
 
   if (loading) {
@@ -32,33 +55,52 @@ function App() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-100">
+        <div className="text-center p-8 bg-white rounded-lg shadow-lg max-w-md">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">Initialization Error</h1>
+          <p className="text-gray-700 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Routes>
-      <Route 
-        path="/" 
-        element={!user ? <Login /> : <Navigate to="/profile" />} 
-      />
-      <Route 
-        path="/profile" 
-        element={user ? <ProfileSetup user={user} /> : <Navigate to="/" />} 
-      />
-      <Route 
-        path="/dashboard" 
-        element={user ? <Dashboard /> : <Navigate to="/" />} 
-      />
-      <Route 
-        path="/requests" 
-        element={user ? <Requests /> : <Navigate to="/" />} 
-      />
-      <Route 
-        path="/my-orders" 
-        element={user ? <MyOrders /> : <Navigate to="/" />} 
-      />
-      <Route 
-        path="/my-deliveries" 
-        element={user ? <MyDeliveries /> : <Navigate to="/" />} 
-      />
-    </Routes>
+    <ErrorBoundary>
+      <Routes>
+        <Route 
+          path="/" 
+          element={!user ? <Login /> : <Navigate to="/profile" />} 
+        />
+        <Route 
+          path="/profile" 
+          element={user ? <ProfileSetup user={user} /> : <Navigate to="/" />} 
+        />
+        <Route 
+          path="/dashboard" 
+          element={user ? <Dashboard /> : <Navigate to="/" />} 
+        />
+        <Route 
+          path="/requests" 
+          element={user ? <Requests /> : <Navigate to="/" />} 
+        />
+        <Route 
+          path="/my-orders" 
+          element={user ? <MyOrders /> : <Navigate to="/" />} 
+        />
+        <Route 
+          path="/my-deliveries" 
+          element={user ? <MyDeliveries /> : <Navigate to="/" />} 
+        />
+      </Routes>
+    </ErrorBoundary>
   );
 }
 

@@ -2,30 +2,40 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-// Your web app's Firebase configuration
+// Firebase config with fallback values for development
 const firebaseConfig = {
-  apiKey: "AIzaSyCiGu_0_91mSDlqNpy9S3qVP44IdMwDlp4",
-  authDomain: "signsync-e53e0.firebaseapp.com",
-  projectId: "signsync-e53e0",
-  storageBucket: "signsync-e53e0.firebasestorage.app",
-  messagingSenderId: "315437917985",
-  appId: "1:315437917985:web:7188e1ec95162fd1478060",
-  measurementId: "G-46H6V45WRJ"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCiGu_0_91mSDlqNpy9S3qVP44IdMwDlp4",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "signsync-e53e0.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "signsync-e53e0",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "signsync-e53e0.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "315437917985",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:315437917985:web:7188e1ec95162fd1478060",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-46H6V45WRJ",
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+let app, auth, db, provider;
 
-const auth = getAuth(app);
-export const provider = new GoogleAuthProvider();
-export const db = getFirestore(app);
+try {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  provider = new GoogleAuthProvider();
+  db = getFirestore(app);
+} catch (error) {
+  console.error("Firebase initialization error:", error);
+  // Don't throw - allow app to continue, Firebase will be undefined
+  console.warn("Firebase failed to initialize. Some features may not work.");
+}
+
+export { auth, provider, db };
 
 export const signInWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, provider);
     console.log("User signed in:", result.user);
+    return result;
   } catch (error) {
-    console.error(error);
+    console.error("Sign in error:", error);
+    throw error;
   }
 };
 
@@ -34,7 +44,8 @@ export const logout = async () => {
     await signOut(auth);
     console.log("User signed out");
   } catch (error) {
-    console.error(error);
+    console.error("Sign out error:", error);
+    throw error;
   }
 };
 

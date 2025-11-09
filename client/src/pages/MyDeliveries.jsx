@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth } from "../firebase";
-import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
-import { db } from "../firebase";
+import api from "../services/api";
 
 export default function MyDeliveries() {
   const navigate = useNavigate();
   const [deliveries, setDeliveries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
+  const [completingId, setCompletingId] = useState(null);
 
   useEffect(() => {
     const unsubscribeAuth = auth.onAuthStateChanged((user) => {
@@ -23,34 +24,36 @@ export default function MyDeliveries() {
     return () => unsubscribeAuth();
   }, [navigate]);
 
-  // Real-time listener for user's deliveries
+  // Fetch user's deliveries from backend
   useEffect(() => {
     if (!currentUser) return;
 
-    const q = query(
-      collection(db, "requests"),
-      where("acceptedById", "==", currentUser.uid),
-      orderBy("acceptedAt", "desc")
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const deliveriesList = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
+    const fetchDeliveries = async () => {
+      try {
+        const response = await api.get("/requests/my-deliveries");
+        const deliveriesList = (response.data.data || []).map((delivery) => ({
+          id: delivery.id.toString(),
+          title: delivery.title,
+          description: delivery.description.toString(),
+          status: delivery.status,
+          requesterEmail: delivery.requester_email || '',
+          createdAt: delivery.created_at ? { seconds: new Date(delivery.created_at).getTime() / 1000 } : null,
+          completedAt: delivery.completed_at ? { seconds: new Date(delivery.completed_at).getTime() / 1000 } : null,
+          acknowledgedByRequester: delivery.acknowledged_by_requester || false,
         }));
         setDeliveries(deliveriesList);
         setLoading(false);
-      },
-      (err) => {
+      } catch (err) {
         console.error("Error fetching deliveries:", err);
         setError("Failed to load your deliveries. Please refresh the page.");
         setLoading(false);
       }
-    );
+    };
 
-    return () => unsubscribe();
+    fetchDeliveries();
+    // Poll every 5 seconds for updates
+    const interval = setInterval(fetchDeliveries, 5000);
+    return () => clearInterval(interval);
   }, [currentUser]);
 
   const getStatusBadge = (status) => {
@@ -67,6 +70,24 @@ export default function MyDeliveries() {
       completed: "Completed",
     };
     return texts[status] || status;
+  };
+
+  const handleComplete = async (requestId) => {
+    try {
+      setCompletingId(requestId);
+      setError("");
+      setSuccess("");
+      await api.patch(`/requests/${requestId}/complete`);
+      setSuccess("Request marked as completed successfully!");
+      setTimeout(() => setSuccess(""), 3000);
+      // Deliveries will refresh via polling
+    } catch (err) {
+      console.error("Error completing request:", err);
+      setError(err.response?.data?.message || "Failed to mark request as completed");
+      setTimeout(() => setError(""), 5000);
+    } finally {
+      setCompletingId(null);
+    }
   };
 
   if (loading) {
@@ -97,6 +118,12 @@ export default function MyDeliveries() {
           {error && (
             <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
               {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+              {success}
             </div>
           )}
 
@@ -140,6 +167,22 @@ export default function MyDeliveries() {
                     </span>
                   </div>
 
+                  {delivery.status === "in_progress" && (
+                    <div className="mt-3">
+                      <button
+                        onClick={() => handleComplete(delivery.id)}
+                        disabled={completingId === delivery.id}
+                        className={`px-4 py-2 rounded-lg transition text-sm font-medium ${
+                          completingId === delivery.id
+                            ? "bg-blue-300 cursor-not-allowed"
+                            : "bg-blue-500 hover:bg-blue-600 text-white"
+                        }`}
+                      >
+                        {completingId === delivery.id ? "Completing..." : "Mark as Completed"}
+                      </button>
+                    </div>
+                  )}
+
                   {delivery.status === "completed" && (
                     <div className="bg-green-50 border border-green-200 rounded p-3 mt-3">
                       <p className="text-sm text-green-800 font-semibold">
@@ -147,13 +190,20 @@ export default function MyDeliveries() {
                       </p>
                       <p className="text-xs text-green-600 mt-1">
                         Completed on:{" "}
-                        {delivery.completedAt?.toDate().toLocaleString() || "Recently"}
+                        {delivery.completedAt?.toDate?.()?.toLocaleString() || 
+                         (delivery.completedAt?.seconds ? new Date(delivery.completedAt.seconds * 1000).toLocaleString() : "Recently")}
                       </p>
+                      {delivery.acknowledgedByRequester && (
+                        <p className="text-xs text-green-700 mt-1 font-medium">
+                          ✓ Acknowledged by requester
+                        </p>
+                      )}
                     </div>
                   )}
 
                   <p className="text-xs text-gray-500 mt-3">
-                    Accepted: {delivery.acceptedAt?.toDate().toLocaleString() || "Just now"}
+                    Accepted: {delivery.acceptedAt?.toDate?.()?.toLocaleString() || 
+                              (delivery.acceptedAt?.seconds ? new Date(delivery.acceptedAt.seconds * 1000).toLocaleString() : "Just now")}
                   </p>
                 </div>
               ))}

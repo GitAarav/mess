@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { auth } from "../firebase";
+import api from "../services/api";
 
 export default function ProfileSetup({ user }) {
   const [formData, setFormData] = useState({
@@ -22,10 +22,7 @@ export default function ProfileSetup({ user }) {
       }
 
       try {
-        const token = await user.getIdToken();
-        const response = await axios.get("http://localhost:3000/auth/check", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await api.get("/auth/check");
 
         if (response.data.exists && response.data.user) {
           const userData = response.data.user;
@@ -75,19 +72,11 @@ export default function ProfileSetup({ user }) {
     }
 
     try {
-      const token = await user.getIdToken();
-      
-      await axios.post(
-        "http://localhost:3000/auth/register",
-        {
-          room_number: formData.room_number.trim(),
-          phone_number: formData.phone_number.trim(),
-          default_mess_id: parseInt(formData.default_mess_id),
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      await api.post("/auth/register", {
+        room_number: formData.room_number.trim(),
+        phone_number: formData.phone_number.trim(),
+        default_mess_id: parseInt(formData.default_mess_id),
+      });
 
       alert("Profile completed successfully!");
       navigate("/dashboard");
